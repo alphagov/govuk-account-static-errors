@@ -1,0 +1,26 @@
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: governmentpaas/cf-cli
+    tag: e1ffec0d1940706f157a8c1e0ab8131b7084fa1c
+inputs:
+  - name: git-main
+    path: src
+params:
+  CF_API: https://api.london.cloud.service.gov.uk
+  CF_USERNAME: ((paas-username))
+  CF_PASSWORD: ((paas-password))
+
+run:
+  dir: src
+  path: sh
+  args:
+    - "-c"
+    - |
+      set -eu
+
+      cf api "$CF_API"
+      cf auth
+      cf t -o "$CF_ORG" -s "$CF_SPACE"
+      cf push $CF_APP_NAME --strategy rolling
