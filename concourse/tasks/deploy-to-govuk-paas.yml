@@ -1,0 +1,36 @@
+platform: linux
+image_resource:
+  type: docker-image
+  source:
+    repository: governmentpaas/cf-cli
+    tag: e1ffec0d1940706f157a8c1e0ab8131b7084fa1c
+inputs:
+  - name: git-main
+    path: src
+params:
+  CF_API: https://api.london.cloud.service.gov.uk
+  CF_USERNAME: ((paas-username))
+  CF_PASSWORD: ((paas-password))
+  SENTRY_DSN: https://((sentry-dsn))
+
+run:
+  dir: src
+  path: sh
+  args:
+    - "-c"
+    - |
+      set -eu
+
+      cf api "$CF_API"
+      cf auth
+      cf t -o "$CF_ORG" -s "$CF_SPACE"
+      cf create-app $CF_APP_NAME || true
+      cf apply-manifest -f manifest.yml
+      cf set-env $CF_APP_NAME CF_STARTUP_TIMEOUT "$CF_STARTUP_TIMEOUT"
+
+      cf scale -i "$APP_INSTANCES" $CF_APP_NAME
+
+      cf set-env $CF_APP_NAME REDIRECT_BASE_URL "https://www.${CDN_DOMAIN}"
+
+      cf push $CF_APP_NAME --strategy rolling
+      cf map-route $CF_APP_NAME "$CDN_DOMAIN" --hostname www

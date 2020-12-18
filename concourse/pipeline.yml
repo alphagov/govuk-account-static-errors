@@ -1,0 +1,126 @@
+---
+resource_types:
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+      tag: latest
+      username: ((docker_hub_username))
+      password: ((docker_hub_authtoken))
+resources:
+  - name: git-main
+    type: git
+    icon: github-circle
+    source:
+      uri: https://github.com/alphagov/govuk-account-static-errors.git
+      branch: main
+  - name: govuk-slack
+    type: slack-notification
+    source:
+      url: https://hooks.slack.com/((slack_webhook_url))
+jobs:
+  - name: update-pipeline
+    plan:
+      - get: git-main
+        trigger: true
+      - set_pipeline: govuk-account-static-errors
+        file: git-main/concourse/pipeline.yml
+  - name: deploy-app-staging
+    serial: true
+    plan:
+      - get: git-main
+      - task: deploy-to-paas
+        file: git-main/concourse/tasks/deploy-to-govuk-paas.yml
+        params:
+          CF_ORG: govuk-accounts
+          CF_APP_NAME: govuk-account-static-errors
+          CF_SPACE: staging
+          CF_STARTUP_TIMEOUT: 15 # minutes
+          APP_INSTANCES: 1
+          CDN_DOMAIN: account.staging.publishing.service.gov.uk
+          APP_DOMAIN: www.staging.publishing.service.gov.uk
+          WEBSITE_ROOT: https://www.staging.publishing.service.gov.uk
+        on_failure:
+          put: govuk-slack
+          params:
+            channel: '#govuk-accounts-tech'
+            username: 'Concourse (GOV.UK Accounts)'
+            icon_emoji: ':concourse:'
+            silent: true
+            text: |
+              :kaboom:
+              Staging deployment for the GOV.UK Account Static Error Page has failed
+              Failed build: http://cd.gds-reliability.engineering/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME
+  - name: smoke-test-staging
+    serial: true
+    plan:
+      - get: git-main
+        trigger: true
+        passed: [deploy-app-staging]
+      - task: smoke-test
+        file: git-main/concourse/tasks/smoke-test.yml
+        timeout: 5m
+        params:
+          URL: 'https://www.account.staging.publishing.service.gov.uk'
+          MESSAGE: "Checks that the application deployed to staging is not critically broken. If this fails, you should investigate immediately."
+        on_failure:
+          put: govuk-slack
+          params:
+            channel: '#govuk-accounts-tech'
+            username: 'Concourse (GOV.UK Accounts)'
+            icon_emoji: ':concourse:'
+            silent: true
+            text: |
+              :kaboom:
+              Staging smoke tests for the GOV.UK Account Static Error Page have failed
+              Failed build: http://cd.gds-reliability.engineering/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME
+  - name: deploy-app-production
+    serial: true
+    plan:
+      - get: git-main
+        trigger: true
+        passed: [smoke-test-staging]
+      - task: deploy-to-paas
+        file: git-main/concourse/tasks/deploy-to-govuk-paas.yml
+        params:
+          CF_ORG: govuk-accounts
+          CF_APP_NAME: govuk-account-static-errors
+          CF_SPACE: production
+          CF_STARTUP_TIMEOUT: 15 # minutes
+          APP_INSTANCES: 1
+          APP_DOMAIN: www.gov.uk
+          WEBSITE_ROOT: https://www.gov.uk
+        on_failure:
+          put: govuk-slack
+          params:
+            channel: '#govuk-accounts-tech'
+            username: 'Concourse (GOV.UK Accounts)'
+            icon_emoji: ':concourse:'
+            silent: true
+            text: |
+              :kaboom:
+              Production deployment for the GOV.UK Account Static Error Page has failed
+              Failed build: http://cd.gds-reliability.engineering/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME
+  - name: smoke-test-production
+    serial: true
+    plan:
+      - get: git-main
+        trigger: true
+        passed: [deploy-app-production]
+      - task: smoke-test
+        file: git-main/concourse/tasks/smoke-test.yml
+        timeout: 5m
+        params:
+          URL: 'https://www.account.publishing.service.gov.uk'
+          MESSAGE: "Checks that the application deployed to production is not critically broken. If this fails, you should investigate immediately."
+        on_failure:
+          put: govuk-slack
+          params:
+            channel: '#govuk-accounts-tech'
+            username: 'Concourse (GOV.UK Accounts)'
+            icon_emoji: ':concourse:'
+            silent: true
+            text: |
+              :kaboom:
+              Production smoke tests for the GOV.UK Account Static Error Page have failed
+              Failed build: http://cd.gds-reliability.engineering/teams/$BUILD_TEAM_NAME/pipelines/$BUILD_PIPELINE_NAME/jobs/$BUILD_JOB_NAME/builds/$BUILD_NAME
