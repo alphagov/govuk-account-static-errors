@@ -1,0 +1,1 @@
+# govuk-account-static-errors
