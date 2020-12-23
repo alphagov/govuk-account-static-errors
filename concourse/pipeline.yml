@@ -39,6 +39,7 @@ jobs:
         params:
           CF_ORG: govuk-accounts
           CF_APP_NAME: govuk-account-static-errors
+          HOSTNAME: govuk-account-static-errors-staging
           CF_SPACE: staging
         on_failure:
           put: govuk-slack
@@ -63,6 +64,7 @@ jobs:
         params:
           CF_ORG: govuk-accounts
           CF_APP_NAME: govuk-account-static-errors
+          HOSTNAME: govuk-account-static-errors
           CF_SPACE: production
         on_failure:
           put: govuk-slack

@@ -1,5 +1,6 @@
 ---
 applications:
 - name: govuk-account-static-errors
-  buildpack: staticfile_buildpack
+  buildpacks:
+    - staticfile_buildpack
   memory: 64M

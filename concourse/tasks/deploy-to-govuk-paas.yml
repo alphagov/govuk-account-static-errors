@@ -22,5 +22,6 @@ run:
 
       cf api "$CF_API"
       cf auth
-      cf t -o "$CF_ORG" -s "$CF_SPACE"
-      cf push $CF_APP_NAME --strategy rolling
+      cf target -o "$CF_ORG" -s "$CF_SPACE"
+      cf push --strategy rolling
+      cf map-route $CF_APP_NAME london.cloudapps.digital --hostname "$HOSTNAME"
