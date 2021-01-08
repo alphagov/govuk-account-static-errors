@@ -4,3 +4,5 @@ applications:
   buildpacks:
     - nginx_buildpack
   memory: 64M
+  services:
+    - splunk-ssl-drain
